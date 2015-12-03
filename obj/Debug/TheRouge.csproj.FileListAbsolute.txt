@@ -1,0 +1,6 @@
+C:\Users\Nathan Bremmer\Documents\Visual Studio 2013\Projects\Games\TheRouge\TheRouge\bin\Debug\TheRouge.exe.config
+C:\Users\Nathan Bremmer\Documents\Visual Studio 2013\Projects\Games\TheRouge\TheRouge\obj\Debug\TheRouge.csprojResolveAssemblyReference.cache
+C:\Users\Nathan Bremmer\Documents\Visual Studio 2013\Projects\Games\TheRouge\TheRouge\bin\Debug\TheRouge.exe
+C:\Users\Nathan Bremmer\Documents\Visual Studio 2013\Projects\Games\TheRouge\TheRouge\bin\Debug\TheRouge.pdb
+C:\Users\Nathan Bremmer\Documents\Visual Studio 2013\Projects\Games\TheRouge\TheRouge\obj\Debug\TheRouge.exe
+C:\Users\Nathan Bremmer\Documents\Visual Studio 2013\Projects\Games\TheRouge\TheRouge\obj\Debug\TheRouge.pdb
