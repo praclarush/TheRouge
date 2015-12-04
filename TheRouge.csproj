@@ -41,6 +41,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CaveGenerator.cs" />
     <Compile Include="Direction.cs" />
     <Compile Include="DungeonGenerator.cs" />
     <Compile Include="Point.cs" />

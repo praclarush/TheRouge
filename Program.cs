@@ -8,11 +8,23 @@ using System.Threading.Tasks;
 namespace TheRouge {
     public class Program {
         public static void Main(string[] args) {
+
+
+
+            GenerateDungeon();
+        }
+
+        private static void GenerateDungeon() {
+            int windowX = 90;
+            int windowY = 90;
+
+            Console.SetWindowSize(windowX, windowY);
+
             Action<char> writer = Console.Write;
             Action<string> logger = WriteToLog;
 
-            DungeonGenerator generator = new DungeonGenerator(80, 50, 90, writer, logger);
-            if (generator.GenerateDungeon(80,50,100)) {
+            DungeonGenerator generator = new DungeonGenerator(windowX, windowY, 75, writer, logger);
+            if (generator.GenerateDungeon(windowX, windowY, 100)) {
                 generator.PrintDungeon();
             }
 

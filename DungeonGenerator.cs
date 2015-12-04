@@ -4,47 +4,55 @@ using System.Linq;
 
 //http://www.roguebasin.com/index.php?title=CSharp_Example_of_a_Dungeon-Building_Algorithm
 
-namespace TheRouge {
-    public class DungeonGenerator {
+namespace TheRouge
+{
+    public class DungeonGenerator
+    {
         private const string MSG_X_SIZE = "X size of Dungeon: {0}\t";
         private const string MSG_Y_SIZE = "Y size of Dungeon: {0}\t";
         private const string MSG_MAX_OBJECTS = "Max # of Objects: {0}\t";
         private const string MSG_NUMBER_OF_OBJECT = "# of Objects: {0}\t";
-        private const short MAX_NUM_TRIES = 1000;
-        private const int SQ_ROOM_SIZE = 4;
+        private const int MAX_NUM_TRIES = 10000;
+        private const int CORRIDOR_MIN_LENGTH = 1;
+        private const int MAX_ROOM_WIDTH = 10;
+        private const int MAX_ROOM_HIGHT = 10;
+        private const int ROOM_MIN_SIZE = 4;
+        private const int MAX_CORRIDOR_LENGTH = 6;
 
-        private readonly int _xMax; //80 - Columns
-        private readonly int _yMax; //25 - Rows
-
+        private readonly int _xMax;
+        private readonly int _yMax;
         private readonly int _roomGenChance; //Chance to generate chance
         private readonly Random _rnd;
 
         private int _xSize;
         private int _ySize;
-
         private int _numObject;
+        private int _lastRandomNumber;
 
-        private TileType[] _dungeonMap = {};
+        private TileType[] _dungeonMap = { };
 
         private readonly Action<string> _logger;
         private readonly Action<char> _writer;
-
+        
         public int Corridors { get; private set; }
 
-        public DungeonGenerator(int xMax, int yMax, int roomChance, Action<char> writer, Action<string> logger) {
+        public DungeonGenerator(int xMax, int yMax, int roomChance, Action<char> writer, Action<string> logger)
+        {
             _xMax = xMax;
             _yMax = yMax;
             _roomGenChance = roomChance;
             _writer = writer;
             _logger = logger;
-
+            _lastRandomNumber = 0;
             _rnd = new Random();
         }
 
-        private bool IsWall(int x, int y, int xLength, int yLength, int xT, int yT, Direction direction) {
+        private bool IsWall(int x, int y, int xLength, int yLength, int xT, int yT, Direction direction)
+        {
             bool ret = false;
 
-            switch (direction) {
+            switch (direction)
+            {
                 case Direction.North:
                     ret = xT == GetFeatureLowerBound(x, xLength) || xT == IsFeatureWallBound(x, xLength) || yT == y || yT == y - (yLength + 1);
                     break;
@@ -64,182 +72,221 @@ namespace TheRouge {
             return ret;
         }
 
-        private IEnumerable<Point> GetRoomPoints(int x, int y, int xLength, int yLength, Direction direction) {
-            switch (direction) {
-                case Direction.North: {
-                    for (int xt = GetFeatureLowerBound(x, xLength); xt < GetFeatureUpperBound(x, xLength); xt++) {
-                        for (int yt = y; yt > y - yLength; yt--) {
-                            yield return new Point {X = xt, Y = yt};
+        private IEnumerable<Point> GetRoomPoints(int x, int y, int xLength, int yLength, Direction direction)
+        {
+            switch (direction)
+            {
+                case Direction.North:
+                    {
+                        for (int xt = GetFeatureLowerBound(x, xLength); xt < GetFeatureUpperBound(x, xLength); xt++)
+                        {
+                            for (int yt = y; yt > y - yLength; yt--)
+                            {
+                                yield return new Point { X = xt, Y = yt };
+                            }
                         }
                     }
-                }
                     break;
-                case Direction.East: {
-                    for (int xt = x; xt < x + xLength; xt++) {
-                        for (int yt = GetFeatureLowerBound(y, yLength); yt < GetFeatureUpperBound(y, yLength); yt++) {
-                            yield return new Point {X = xt, Y = yt};
+                case Direction.East:
+                    {
+                        for (int xt = x; xt < x + xLength; xt++)
+                        {
+                            for (int yt = GetFeatureLowerBound(y, yLength); yt < GetFeatureUpperBound(y, yLength); yt++)
+                            {
+                                yield return new Point { X = xt, Y = yt };
+                            }
                         }
                     }
-                }
                     break;
-                case Direction.South: {
-                    for (int xt = GetFeatureLowerBound(x, xLength); xt < GetFeatureUpperBound(x, xLength); xt++) {
-                        for (int yt = y; yt < y + yLength; yt++) {
-                            yield return new Point {X = xt, Y = yt};
+                case Direction.South:
+                    {
+                        for (int xt = GetFeatureLowerBound(x, xLength); xt < GetFeatureUpperBound(x, xLength); xt++)
+                        {
+                            for (int yt = y; yt < y + yLength; yt++)
+                            {
+                                yield return new Point { X = xt, Y = yt };
+                            }
                         }
                     }
-                }
                     break;
-                case Direction.West: {
-                    for (int xt = x; xt > x - xLength; xt--) {
-                        for (int yt = GetFeatureLowerBound(y, yLength); yt < GetFeatureUpperBound(y, yLength); yt++) {
-                            yield return new Point {X = xt, Y = yt};
+                case Direction.West:
+                    {
+                        for (int xt = x; xt > x - xLength; xt--)
+                        {
+                            for (int yt = GetFeatureLowerBound(y, yLength); yt < GetFeatureUpperBound(y, yLength); yt++)
+                            {
+                                yield return new Point { X = xt, Y = yt };
+                            }
                         }
                     }
-                }
                     break;
                 default:
                     yield break;
             }
         }
 
-        private void SetCell(int x, int y, TileType cellType) {
+        private void SetCell(int x, int y, TileType cellType)
+        {
             _dungeonMap[x + _xSize * y] = cellType;
         }
 
-        private bool MakeCorridor(int x, int y, int length, Direction direction) {
-            int len = GetRandomNumber(2, length);
+        private bool MakeCorridor(int x, int y, int length, Direction direction)
+        {
+            int len = GetRandomNumber(CORRIDOR_MIN_LENGTH, length);
 
             TileType floor = TileType.Corridor;
 
             int xTemp = 0;
             int yTemp = 0;
 
-            switch (direction) {
-                case Direction.North: {
-                    if (x < 0 || x > _xSize) { return false; }
+            switch (direction)
+            {
+                case Direction.North:
+                    {
+                        if (x < 0 || x > _xSize) { return false; }
 
-                    xTemp = x;
+                        xTemp = x;
 
-                    for (int ytemp = y; ytemp > (y - len); ytemp--) {
-                        if (yTemp < 0 || ytemp > _ySize) { return false; }
-                        if (GetCellType(xTemp, ytemp) != TileType.Unused) { return false; }
+                        for (int ytemp = y; ytemp > (y - len); ytemp--)
+                        {
+                            if (yTemp < 0 || ytemp > _ySize) { return false; }
+                            if (GetCellType(xTemp, ytemp) != TileType.Unused) { return false; }
+                        }
+
+                        Corridors++;
+
+                        for (yTemp = y; yTemp > (y - len); yTemp--)
+                        {
+                            SetCell(xTemp, yTemp, floor);
+                        }
                     }
-
-                    Corridors++;
-
-                    for (yTemp = y; yTemp > (y - len); yTemp--) {
-                        SetCell(xTemp, yTemp, floor);
-                    }
-                }
                     break;
-                case Direction.East: {
-                    if (y < 0 || y > _ySize) { return false; }
-                    yTemp = y;
+                case Direction.East:
+                    {
+                        if (y < 0 || y > _ySize) { return false; }
+                        yTemp = y;
 
-                    for (xTemp = x; xTemp < (x + len); xTemp++) {
-                        if (xTemp < 0 || xTemp > _xSize) { return false; }
-                        if (GetCellType(xTemp, yTemp) != TileType.Unused) { return false; }
-                    }
+                        for (xTemp = x; xTemp < (x + len); xTemp++)
+                        {
+                            if (xTemp < 0 || xTemp > _xSize) { return false; }
+                            if (GetCellType(xTemp, yTemp) != TileType.Unused) { return false; }
+                        }
 
-                    Corridors++;
-                    for (xTemp = x; xTemp < (x + len); xTemp++) {
-                        SetCell(xTemp, yTemp, floor);
+                        Corridors++;
+                        for (xTemp = x; xTemp < (x + len); xTemp++)
+                        {
+                            SetCell(xTemp, yTemp, floor);
+                        }
                     }
-                }
                     break;
-                case Direction.South: {
-                    if (x < 0 || x > _xSize) { return false; }
+                case Direction.South:
+                    {
+                        if (x < 0 || x > _xSize) { return false; }
 
-                    xTemp = x;
+                        xTemp = x;
 
-                    for (yTemp = y; yTemp < (y + len); yTemp++) {
+                        for (yTemp = y; yTemp < (y + len); yTemp++)
+                        {
+                            if (yTemp < 0 || yTemp > _ySize) { return false; }
+                            if (GetCellType(xTemp, yTemp) != TileType.Unused) { return false; }
+                        }
+
+                        Corridors++;
+
+                        for (yTemp = y; yTemp < (y + len); yTemp++)
+                        {
+                            SetCell(xTemp, yTemp, floor);
+                        }
+                    }
+                    break;
+                case Direction.West:
+                    {
                         if (yTemp < 0 || yTemp > _ySize) { return false; }
-                        if (GetCellType(xTemp, yTemp) != TileType.Unused) { return false; }
+
+                        yTemp = y;
+
+                        for (xTemp = x; xTemp > (x - len); xTemp--)
+                        {
+                            if (xTemp < 0 || xTemp > _xSize) { return false; }
+                            if (GetCellType(xTemp, yTemp) != TileType.Unused) { return false; }
+                        }
+
+                        Corridors++;
+
+                        for (xTemp = x; xTemp > (x - len); xTemp--)
+                        {
+                            SetCell(xTemp, yTemp, floor);
+                        }
                     }
-
-                    Corridors++;
-
-                    for (yTemp = y; yTemp < (y + len); yTemp++) {
-                        SetCell(xTemp, yTemp, floor);
-                    }
-                }
-                    break;
-                case Direction.West: {
-                    if (yTemp < 0 || yTemp > _ySize) { return false; }
-
-                    yTemp = y;
-
-                    for (xTemp = x; xTemp > (x - len); xTemp--) {
-                        if (xTemp < 0 || xTemp > _xSize) { return false; }
-                        if (GetCellType(xTemp, yTemp) != TileType.Unused) { return false; }
-                    }
-
-                    Corridors++;
-
-                    for (xTemp = x; xTemp > (x - len); xTemp--) {
-                        SetCell(xTemp, yTemp, floor);
-                    }
-                }
                     break;
             }
 
             return true;
         }
 
-        private bool MakeRoom(int x, int y, int xLength, int yLength, Direction direction) {
-            int xLen = GetRandomNumber(SQ_ROOM_SIZE, xLength);
-            int yLen = GetRandomNumber(SQ_ROOM_SIZE, yLength);
+        private bool MakeRoom(int x, int y, int xLength, int yLength, Direction direction)
+        {
+            int xLen = GetRandomNonRepeatNumber(ROOM_MIN_SIZE, xLength);
+            int yLen = GetRandomNonRepeatNumber(ROOM_MIN_SIZE, yLength);
 
             TileType floor = TileType.DirtFloor;
             TileType wall = TileType.DirtWall;
 
             Point[] points = GetRoomPoints(x, y, xLength, yLength, direction).ToArray();
 
-            if (points.Any(p => p.Y < 0 || p.Y > _ySize || p.X < 0 || p.X > _xSize || GetCellType(p.X, p.Y) != TileType.Unused)) {
+            if (points.Any(p => p.Y < 0 || p.Y > _ySize || p.X < 0 || p.X > _xSize || GetCellType(p.X, p.Y) != TileType.Unused))
+            {
                 return false;
             }
 
             _logger(string.Format("Making Room: int x={0}, int y={1}, int xLength={2}, int yLengt={3}, int direction={4}", x, y, xLength, yLength, direction));
 
-            foreach (Point point in points) {
+            foreach (Point point in points)
+            {
                 SetCell(point.X, point.Y, IsWall(x, y, xLen, yLen, point.X, point.Y, direction) ? wall : floor);
             }
 
             return true;
         }
 
-        private IEnumerable<Tuple<Point, Direction>> GetSurroundingPoints(Point value) {
-            Tuple<Point, Direction>[] points = {Tuple.Create(new Point {X = value.X, Y = value.Y + 1}, Direction.North), Tuple.Create(new Point {X = value.X - 1, Y = value.Y}, Direction.East), Tuple.Create(new Point {X = value.X, Y = value.Y - 1}, Direction.South), Tuple.Create(new Point {X = value.X + 1, Y = value.Y}, Direction.West)};
+        private IEnumerable<Tuple<Point, Direction>> GetSurroundingPoints(Point value)
+        {
+            Tuple<Point, Direction>[] points = { Tuple.Create(new Point { X = value.X, Y = value.Y + 1 }, Direction.North), Tuple.Create(new Point { X = value.X - 1, Y = value.Y }, Direction.East), Tuple.Create(new Point { X = value.X, Y = value.Y - 1 }, Direction.South), Tuple.Create(new Point { X = value.X + 1, Y = value.Y }, Direction.West) };
             return points.Where(x => InBounds(x.Item1));
         }
 
-        private IEnumerable<Tuple<Point, Direction, TileType>> GetSurroundings(Point value) {
+        private IEnumerable<Tuple<Point, Direction, TileType>> GetSurroundings(Point value)
+        {
             return GetSurroundingPoints(value).Select(x => Tuple.Create(x.Item1, x.Item2, GetCellType(x.Item1.X, x.Item1.Y)));
         }
 
-        private TileType GetCellType(int x, int y) {
-            try {
+        private TileType GetCellType(int x, int y)
+        {
+            try
+            {
                 return _dungeonMap[x + _xSize * y];
             }
-            catch (IndexOutOfRangeException ex) {
-                //TODO(Nathan): Add Logging
+            catch (IndexOutOfRangeException ex)
+            {
+                _logger(ex.ToString());
                 throw;
             }
         }
 
-        private char GetCellTile(int x, int y) {
-            switch (GetCellType(x, y)) {
+        private char GetCellTile(int x, int y)
+        {
+            switch (GetCellType(x, y))
+            {
                 case TileType.Unused:
-                    return ' ';
+                    return 'S';
                 case TileType.DirtWall:
                     return '|';
                 case TileType.DirtFloor:
-                    return '_';
+                    return ' ';
                 case TileType.StoneWall:
                     return ' ';
                 case TileType.Corridor:
-                    return '#';
+                    return ' ';
                 case TileType.Door:
                     return 'D';
                 case TileType.Upstairs:
@@ -252,10 +299,12 @@ namespace TheRouge {
                     throw new ArgumentOutOfRangeException("x,y"); //TODO(Nathan): Make a custom Exception for this.                    
             }
         }
-        
-        private Direction RandomDirection() {
-            int direction = GetRandomNumber(0, 4);
-            switch (direction) {
+
+        private Direction RandomDirection()
+        {
+            int direction = GetRandomNonRepeatNumber(0, 4);
+            switch (direction)
+            {
                 case 0:
                     return Direction.North;
                 case 1:
@@ -269,53 +318,72 @@ namespace TheRouge {
             }
         }
 
-        private void AddObjects() {
+        private void AddObjects()
+        {
             int state = 0;
-            while (state != 10) {
-                for (int tries = 0; tries < MAX_NUM_TRIES; tries++) {
+            while (state != 10)
+            {
+                for (int tries = 0; tries < MAX_NUM_TRIES; tries++)
+                {
                     int newX = GetRandomNumber(1, _xSize - 1);
                     int newY = GetRandomNumber(1, _ySize - 2);
 
                     int sides = 4;
 
-                    if (GetCellType(newX, newY + 1) == TileType.DirtFloor || GetCellType(newX, newY + 1) == TileType.Corridor) {
-                        if (GetCellType(newX, newY + 1) != TileType.Door) {
+                    if (GetCellType(newX, newY + 1) == TileType.DirtFloor || GetCellType(newX, newY + 1) == TileType.Corridor)
+                    {
+                        if (GetCellType(newX, newY + 1) != TileType.Door)
+                        {
                             sides--;
                         }
                     }
 
-                    if (GetCellType(newX - 1, newY) == TileType.DirtFloor || GetCellType(newX - 1, newY) == TileType.Corridor) {
-                        if (GetCellType(newX - 1, newY) != TileType.Door) {
+                    if (GetCellType(newX - 1, newY) == TileType.DirtFloor || GetCellType(newX - 1, newY) == TileType.Corridor)
+                    {
+                        if (GetCellType(newX - 1, newY) != TileType.Door)
+                        {
                             sides--;
                         }
                     }
 
-                    if (GetCellType(newX, newY - 1) == TileType.DirtFloor || GetCellType(newX, newY - 1) == TileType.Corridor) {
-                        if (GetCellType(newX, newY - 1) != TileType.Door) {
+                    if (GetCellType(newX, newY - 1) == TileType.DirtFloor || GetCellType(newX, newY - 1) == TileType.Corridor)
+                    {
+                        if (GetCellType(newX, newY - 1) != TileType.Door)
+                        {
                             sides--;
                         }
                     }
 
-                    if (GetCellType(newX + 1, newY) == TileType.DirtFloor || GetCellType(newX + 1, newY) == TileType.Corridor) {
-                        if (GetCellType(newX + 1, newY) != TileType.Door) {
+                    if (GetCellType(newX + 1, newY) == TileType.DirtFloor || GetCellType(newX + 1, newY) == TileType.Corridor)
+                    {
+                        if (GetCellType(newX + 1, newY) != TileType.Door)
+                        {
                             sides--;
                         }
                     }
 
-                    if (state == 0) {
-                        if (sides == 0) {
+                    if (state == 0)
+                    {
+                        if (sides == 0)
+                        {
                             SetCell(newX, newY, TileType.Upstairs);
                             state = 1;
                             break;
                         }
-                    } else if (state == 1) {
-                        if (sides == 0) {
+                    }
+                    else if (state == 1)
+                    {
+                        if (sides == 0)
+                        {
                             SetCell(newX, newY, TileType.Downstairs);
                             state = 9;
                             break;
                         }
-                    } else if (state == 9) {
-                        if (sides == 0) {
+                    }
+                    else if (state == 9)
+                    {
+                        if (sides == 0)
+                        {
                             SetCell(newX, newY, TileType.Chest);
                             state = 10;
                             break;
@@ -325,68 +393,98 @@ namespace TheRouge {
             }
         }
 
-        private void BuildMapEdge() {
-            for (int y = 0; y < _ySize; y++) {
-                for (int x = 0; x < _xSize; x++) {
-                    if (y == 0 || y == _ySize - 1 || x == 0 || x == _xSize - 1) {
+        private void BuildMapEdge()
+        {
+            for (int y = 0; y < _ySize; y++)
+            {
+                for (int x = 0; x < _xSize; x++)
+                {
+                    if (y == 0 || y == _ySize - 1 || x == 0 || x == _xSize - 1)
+                    {
                         SetCell(x, y, TileType.StoneWall);
-                    } else {
+                    }
+                    else
+                    {
                         SetCell(x, y, TileType.Unused);
                     }
                 }
             }
         }
 
-        private bool InBounds(int x, int y) {
+        private bool InBounds(int x, int y)
+        {
             return x > 0 && x < _xMax && y > 0 && y < _yMax;
         }
 
-        private bool InBounds(Point value) {
+        private bool InBounds(Point value)
+        {
             return InBounds(value.X, value.Y);
         }
 
-        private int GetRandomNumber(int min, int max) {
+        private int GetRandomNumber(int min, int max)
+        {
             return _rnd.Next(min, max);
         }
-
-        private int GetFeatureLowerBound(int value, int length) {
-            return value - (length / 2);
+        
+        private int GetRandomNonRepeatNumber(int min, int max)
+        {
+            int newNumber = 0;
+            do
+            {
+                newNumber = GetRandomNumber(min, max);
+            } while (newNumber == _lastRandomNumber);
+            return newNumber;
         }
 
-        private int GetFeatureUpperBound(int value, int length) {
+        private int GetFeatureLowerBound(int value, int length)
+        {
+            return value - ((length +1) / 2);
+        }
+
+        private int GetFeatureUpperBound(int value, int length)
+        {
             return value + ((length + 1) / 2);
         }
 
-        private int IsFeatureWallBound(int value, int length) {
+        private int IsFeatureWallBound(int value, int length)
+        {
             return value + ((length - 1) / 2);
         }
-        
-        public TileType[] GetDungeon() {
+
+        public TileType[] GetDungeon()
+        {
             return _dungeonMap;
         }
-        
-        public bool GenerateDungeon(int width, int height, int numObjects) {
+
+        public bool GenerateDungeon(int width, int height, int numObjects)
+        {
             int currentFeatures = 0;
 
             _numObject = numObjects < 1 ? 10 : numObjects;
 
-            if (width < 3) {
+            if (width < 3)
+            {
                 _xSize = 3;
             }
-            else if (width > _xMax) {
+            else if (width > _xMax)
+            {
                 _xSize = _xMax;
             }
-            else {
+            else
+            {
                 _xSize = width;
             }
 
-            if (height < 3) {
+            if (height < 3)
+            {
                 _ySize = 3;
             }
-            else if (height > _yMax) {
+            else if (height > _yMax)
+            {
                 _ySize = _yMax;
             }
-            else {
+            else
+            {
                 _ySize = height;
             }
 
@@ -398,12 +496,14 @@ namespace TheRouge {
 
             BuildMapEdge();
 
-            MakeRoom(_xSize / 2, _ySize / 2, 8, 6, RandomDirection());
+            MakeRoom(_xSize / 4, _ySize / 4, MAX_ROOM_WIDTH, MAX_ROOM_HIGHT, RandomDirection());
 
             currentFeatures += 1;
 
-            for (int tries = 0; tries < MAX_NUM_TRIES; tries++) {
-                if (currentFeatures == _numObject) {
+            for (int tries = 0; tries < MAX_NUM_TRIES; tries++)
+            {
+                if (currentFeatures == _numObject)
+                {
                     break;
                 }
 
@@ -413,21 +513,25 @@ namespace TheRouge {
                 int yMod = 0;
                 Direction? validTile = null;
 
-                for (int tests = 0; tests < MAX_NUM_TRIES; tests++) {
+                for (int tests = 0; tests < MAX_NUM_TRIES; tests++)
+                {
                     newX = GetRandomNumber(1, _xSize - 1);
                     newY = GetRandomNumber(1, _ySize - 1);
 
-                    if (GetCellType(newX, newY) == TileType.DirtWall || GetCellType(newX, newY) == TileType.Corridor) {
-                        IEnumerable<Tuple<Point, Direction, TileType>> surroundings = GetSurroundings(new Point {X = newX, Y = newY});
+                    if (GetCellType(newX, newY) == TileType.DirtWall || GetCellType(newX, newY) == TileType.Corridor)
+                    {
+                        IEnumerable<Tuple<Point, Direction, TileType>> surroundings = GetSurroundings(new Point { X = newX, Y = newY });
 
                         Tuple<Point, Direction, TileType> canReach = surroundings.FirstOrDefault(x => x.Item3 == TileType.Corridor || x.Item3 == TileType.DirtFloor);
 
-                        if (canReach == null) {
+                        if (canReach == null)
+                        {
                             continue;
                         }
 
                         validTile = canReach.Item2;
-                        switch (validTile) {
+                        switch (validTile)
+                        {
                             case Direction.North:
                                 xMod = 0;
                                 yMod = -1;
@@ -448,29 +552,37 @@ namespace TheRouge {
                                 throw new InvalidOperationException(); //TODO(Nathan): Make this a custom Exception
                         }
 
-                        if (GetCellType(newX, newY + 1) == TileType.Door) {
+                        if (GetCellType(newX, newY + 1) == TileType.Door)
+                        {
                             validTile = null;
                         }
-                        else if (GetCellType(newX - 1, newY) == TileType.Door) {
+                        else if (GetCellType(newX - 1, newY) == TileType.Door)
+                        {
                             validTile = null;
                         }
-                        else if (GetCellType(newX, newY - 1) == TileType.Door) {
+                        else if (GetCellType(newX, newY - 1) == TileType.Door)
+                        {
                             validTile = null;
                         }
-                        else if (GetCellType(newX + 1, newY) == TileType.Door) {
+                        else if (GetCellType(newX + 1, newY) == TileType.Door)
+                        {
                             validTile = null;
                         }
 
-                        if (validTile.HasValue) {
+                        if (validTile.HasValue)
+                        {
                             break;
                         }
                     }
                 }
 
-                if (validTile.HasValue) {
+                if (validTile.HasValue)
+                {
                     int feature = GetRandomNumber(0, 100);
-                    if (feature <= _roomGenChance) {
-                        if (MakeRoom(newX + xMod, newY + yMod, 8, 6, validTile.Value)) {
+                    if (feature <= _roomGenChance)
+                    {
+                        if (MakeRoom(newX + xMod, newY + yMod, MAX_ROOM_WIDTH, MAX_ROOM_HIGHT, validTile.Value))
+                        {
                             currentFeatures++;
 
                             SetCell(newX, newY, TileType.Door);
@@ -478,8 +590,10 @@ namespace TheRouge {
                             SetCell(newX + xMod, newY + yMod, TileType.DirtFloor);
                         }
                     }
-                    else {
-                        if (MakeCorridor(newX + xMod, newY + yMod, 6, validTile.Value)) {
+                    else
+                    {
+                        if (MakeCorridor(newX + xMod, newY + yMod, MAX_CORRIDOR_LENGTH, validTile.Value))
+                        {
                             currentFeatures++;
                             SetCell(newX, newY, TileType.Door);
                         }
@@ -493,9 +607,12 @@ namespace TheRouge {
             return true;
         }
 
-        public void PrintDungeon() {
-            for (int y = 0; y < _ySize; y++) {
-                for (int x = 0; x < _xSize; x++) {
+        public void PrintDungeon()
+        {
+            for (int y = 0; y < _ySize; y++)
+            {
+                for (int x = 0; x < _xSize; x++)
+                {
                     _writer(GetCellTile(x, y));
                 }
             }
